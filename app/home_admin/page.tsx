@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 type AdminTab = "home" | "team" | "drawings" | "messages";
 
 export default function HomeAdminPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<AdminTab>("home");
 
   return (
@@ -44,7 +46,10 @@ export default function HomeAdminPage() {
                   <span className="text-[16px] text-[#434654]">건</span>
                 </div>
               </div>
-              <button className="text-[#003d9b] text-[14px] flex items-center gap-1 hover:bg-[#f0f3ff] p-1 rounded-lg">
+              <button
+                onClick={() => router.push("/review")}
+                className="text-[#003d9b] text-[14px] flex items-center gap-1 hover:bg-[#f0f3ff] p-1 rounded-lg"
+              >
                 지금 확인하기
                 <span className="material-symbols-outlined text-[16px]">chevron_right</span>
               </button>
