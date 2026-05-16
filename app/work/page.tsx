@@ -9,6 +9,7 @@ import {
   submitTask,
   type WorkTaskDetail,
 } from "@/lib/tasks";
+import { SymbolAnalyzer } from "@/components/symbol-analyzer/SymbolAnalyzer";
 
 const STATUS_LABEL: Record<WorkTaskDetail["status"], { label: string; bg: string }> = {
   waiting: { label: "대기", bg: "bg-gray-500" },
@@ -233,12 +234,8 @@ function DrawingViewer({ task, isRework }: { task: WorkTaskDetail; isRework: boo
     <div className="relative bg-[#1E2A3A] w-full" style={{ height: "300px" }}>
       {task.drawing?.file_url ? (
         <>
-          <img
-            src={task.drawing.file_url}
-            alt={task.drawing.title}
-            className="absolute inset-0 w-full h-full object-contain"
-          />
-          <div className="absolute bottom-3 left-3 bg-black/50 rounded-lg px-3 py-1">
+          <SymbolAnalyzer imageUrl={task.drawing.file_url} />
+          <div className="absolute bottom-3 left-3 bg-black/50 rounded-lg px-3 py-1 z-10 pointer-events-none">
             <span className="text-white text-xs font-semibold">{task.drawing.title}</span>
           </div>
         </>
