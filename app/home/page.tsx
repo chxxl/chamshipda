@@ -21,9 +21,9 @@ const STATUS_CONFIG: Record<
 
 function mapStatus(dbStatus: HomeTask["status"]): UiStatus | null {
   if (dbStatus === "rework") return "rework";
-  if (dbStatus === "in_progress" || dbStatus === "submitted") return "inprogress";
+  if (dbStatus === "in_progress") return "inprogress";
   if (dbStatus === "waiting") return "waiting";
-  return null; // approved (안 보임)
+  return null; // submitted/approved (안 보임)
 }
 
 function TaskCard({ task }: { task: HomeTask }) {
@@ -65,7 +65,7 @@ function TaskCard({ task }: { task: HomeTask }) {
         </button>
       )}
       {uiStatus === "inprogress" && (
-        <button onClick={() => router.push("/work2")} className="w-full border-2 border-blue-600 text-blue-600 font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-50 transition-colors">
+        <button onClick={() => router.push(workPageHref(task.id))} className="w-full border-2 border-blue-600 text-blue-600 font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-50 transition-colors">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
             <rect x="3" y="3" width="4" height="18" rx="1" />
             <polygon points="11,3 24,12 11,21" />
@@ -74,7 +74,7 @@ function TaskCard({ task }: { task: HomeTask }) {
         </button>
       )}
       {uiStatus === "waiting" && (
-        <button onClick={() => router.push("/wait")} className="w-full border border-gray-300 text-gray-700 font-semibold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors">
+        <button onClick={() => router.push(workPageHref(task.id))} className="w-full border border-gray-300 text-gray-700 font-semibold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
             <polyline points="14 2 14 8 20 8" />
