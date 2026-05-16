@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 type TabType = "todo" | "done" | "message";
 
@@ -41,6 +42,7 @@ const STATUS_CONFIG = {
 };
 
 function TaskCard({ task }: { task: Task }) {
+  const router = useRouter();
   const config = STATUS_CONFIG[task.status];
 
   return (
@@ -88,7 +90,7 @@ function TaskCard({ task }: { task: Task }) {
 
       {/* 액션 버튼 */}
       {task.status === "rework" && (
-        <button className="w-full bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors">
+        <button onClick={() => router.push("/work")} className="w-full bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
             <polygon points="5,3 19,12 5,21" />
           </svg>
