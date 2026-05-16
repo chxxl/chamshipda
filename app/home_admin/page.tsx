@@ -183,7 +183,7 @@ export default function HomeAdminPage() {
             label="팀원"
             icon="group"
             active={activeTab === "team"}
-            onClick={() => setActiveTab("team")}
+            onClick={() => { setActiveTab("team"); router.push("/team"); }}
           />
           <NavTab
             label="도면"
