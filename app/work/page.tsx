@@ -226,54 +226,228 @@ function WorkPageContent() {
   );
 }
 
+interface SymbolInfo {
+  name_ko?: string;
+  name_en?: string;
+  category?: string;
+  connection_type?: string;
+  description?: string;
+  size_hint?: string;
+  error?: string;
+}
+
 function DrawingViewer({ task, isRework }: { task: WorkTaskDetail; isRework: boolean }) {
   const tapColor = isRework ? "bg-red-500" : "bg-blue-600";
+  const [showZoom, setShowZoom] = useState(false);
+  const [scale, setScale] = useState(1);
+  const [tapPoint, setTapPoint] = useState<{ x: number; y: number } | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [symbolInfo, setSymbolInfo] = useState<SymbolInfo | null>(null);
+
+  const hasImage = !!task.drawing?.file_url;
+
+  const resetAnalysis = () => {
+    setTapPoint(null);
+    setSymbolInfo(null);
+    setAnalyzing(false);
+  };
+
+  const handleClose = () => {
+    setShowZoom(false);
+    setScale(1);
+    resetAnalysis();
+  };
+
+  const handleImageTap = async (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!task.drawing?.file_url) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+    setTapPoint({ x, y });
+    setSymbolInfo(null);
+    setAnalyzing(true);
+
+    try {
+      const res = await fetch("/api/analyze-symbol", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl: task.drawing.file_url, x, y }),
+      });
+      const data: SymbolInfo = await res.json();
+      setSymbolInfo(data);
+    } catch {
+      setSymbolInfo({ error: "분석 중 오류가 발생했습니다" });
+    } finally {
+      setAnalyzing(false);
+    }
+  };
 
   return (
-    <div className="relative bg-[#1E2A3A] w-full" style={{ height: "300px" }}>
-      {task.drawing?.file_url ? (
-        <>
-          <img
-            src={task.drawing.file_url}
-            alt={task.drawing.title}
-            className="absolute inset-0 w-full h-full object-contain"
-          />
-          <div className="absolute bottom-3 left-3 bg-black/50 rounded-lg px-3 py-1">
-            <span className="text-white text-xs font-semibold">{task.drawing.title}</span>
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="border border-dashed border-gray-500 w-4/5 h-4/5 relative flex items-center justify-center">
-              <svg className="absolute inset-0 w-full h-full" viewBox="0 0 300 200" fill="none">
-                <line x1="40" y1="80" x2="160" y2="80" stroke="#9CA3AF" strokeWidth="2" />
-                <line x1="160" y1="80" x2="160" y2="40" stroke="#9CA3AF" strokeWidth="2" />
-                <rect x="150" y="32" width="20" height="16" stroke={isRework ? "#EF4444" : "#9CA3AF"} strokeWidth="2" fill="none" />
-                <line x1="160" y1="80" x2="260" y2="80" stroke="#9CA3AF" strokeWidth="2" />
-                <line x1="220" y1="80" x2="220" y2="140" stroke="#9CA3AF" strokeWidth="2" />
-                <line x1="180" y1="140" x2="260" y2="140" stroke="#9CA3AF" strokeWidth="2" />
+    <>
+      {/* 썸네일 뷰 */}
+      <div
+        className={`relative bg-[#1E2A3A] w-full ${hasImage ? "cursor-pointer" : ""}`}
+        style={{ height: "300px" }}
+        onClick={hasImage ? () => setShowZoom(true) : undefined}
+      >
+        {hasImage ? (
+          <>
+            <img
+              src={task.drawing!.file_url!}
+              alt={task.drawing!.title}
+              className="absolute inset-0 w-full h-full object-contain"
+            />
+            <div className="absolute inset-0 flex items-end justify-center pb-10 pointer-events-none">
+              <div className="bg-black/60 backdrop-blur-sm rounded-full px-4 py-2 flex items-center gap-2">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  <line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" />
+                </svg>
+                <span className="text-white text-xs font-semibold">탭하여 AI 심볼 분석</span>
+              </div>
+            </div>
+            <div className="absolute bottom-3 left-3 bg-black/50 rounded-lg px-3 py-1">
+              <span className="text-white text-xs font-semibold">{task.drawing!.title}</span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="border border-dashed border-gray-500 w-4/5 h-4/5 relative flex items-center justify-center">
+                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 300 200" fill="none">
+                  <line x1="40" y1="80" x2="160" y2="80" stroke="#9CA3AF" strokeWidth="2" />
+                  <line x1="160" y1="80" x2="160" y2="40" stroke="#9CA3AF" strokeWidth="2" />
+                  <rect x="150" y="32" width="20" height="16" stroke={isRework ? "#EF4444" : "#9CA3AF"} strokeWidth="2" fill="none" />
+                  <line x1="160" y1="80" x2="260" y2="80" stroke="#9CA3AF" strokeWidth="2" />
+                  <line x1="220" y1="80" x2="220" y2="140" stroke="#9CA3AF" strokeWidth="2" />
+                  <line x1="180" y1="140" x2="260" y2="140" stroke="#9CA3AF" strokeWidth="2" />
+                </svg>
+                <TapPoint tapColor={tapColor} />
+              </div>
+            </div>
+            <div className="absolute bottom-3 left-3">
+              <span className="text-gray-400 text-xs">{task.drawing?.title ?? "도면 없음"}</span>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* 풀스크린 줌 모달 */}
+      {showZoom && hasImage && (
+        <div className="fixed inset-0 bg-black z-50 flex flex-col">
+          {/* 헤더 */}
+          <div className="flex items-center gap-3 px-4 py-3 bg-black/80 flex-shrink-0">
+            <button type="button" onClick={handleClose} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
               </svg>
-              <TapPoint tapColor={tapColor} />
+            </button>
+            <span className="text-white text-sm font-semibold flex-1 truncate">{task.drawing!.title}</span>
+            <div className="flex gap-2 flex-shrink-0">
+              <button type="button" onClick={() => { setScale((s) => Math.min(s + 0.5, 3)); resetAnalysis(); }} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white font-bold text-lg">+</button>
+              <button type="button" onClick={() => { setScale((s) => Math.max(s - 0.5, 1)); resetAnalysis(); }} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white font-bold text-lg">−</button>
+              {scale > 1 && (
+                <button type="button" onClick={() => { setScale(1); resetAnalysis(); }} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white text-xs font-semibold">↺</button>
+              )}
             </div>
           </div>
-          <div className="absolute bottom-3 left-3">
-            <span className="text-gray-400 text-xs">{task.drawing?.title ?? "도면 없음"}</span>
+
+          {/* 이미지 영역 */}
+          <div className="flex-1 overflow-auto" style={{ cursor: "crosshair" }}>
+            <div
+              className="relative"
+              style={{ width: `${scale * 100}%` }}
+              onClick={handleImageTap}
+            >
+              <img
+                src={task.drawing!.file_url!}
+                alt={task.drawing!.title}
+                className="w-full h-auto block select-none"
+                draggable={false}
+              />
+
+              {/* 탭 포인트 인디케이터 */}
+              {tapPoint && (
+                <div
+                  className="absolute pointer-events-none z-10"
+                  style={{ left: `${tapPoint.x}%`, top: `${tapPoint.y}%`, transform: "translate(-50%, -50%)" }}
+                >
+                  {analyzing ? (
+                    <div className="w-11 h-11 rounded-full bg-blue-500/80 flex items-center justify-center shadow-lg">
+                      <svg className="animate-spin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                      </svg>
+                    </div>
+                  ) : (
+                    <div className="w-11 h-11 rounded-full border-2 border-blue-400 bg-blue-500/30 flex items-center justify-center shadow-lg">
+                      <div className="w-3 h-3 bg-blue-400 rounded-full" />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 힌트 텍스트 (탭 전) */}
+            {!tapPoint && (
+              <div className="fixed bottom-20 left-0 right-0 flex justify-center pointer-events-none">
+                <div className="bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
+                  <span className="text-white/80 text-xs">심볼을 탭하면 AI가 분석합니다</span>
+                </div>
+              </div>
+            )}
           </div>
-        </>
+
+          {/* 심볼 정보 팝업 */}
+          {symbolInfo && (
+            <div className="flex-shrink-0 bg-white rounded-t-3xl shadow-2xl max-h-[55vh] overflow-y-auto">
+              <div className="px-5 pt-5 pb-8">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1 min-w-0 pr-3">
+                    {symbolInfo.error ? (
+                      <p className="text-sm text-gray-500">{symbolInfo.error}</p>
+                    ) : (
+                      <>
+                        <h3 className="text-xl font-extrabold text-gray-900 leading-tight">{symbolInfo.name_ko}</h3>
+                        <p className="text-sm text-gray-400 mt-0.5">{symbolInfo.name_en}</p>
+                      </>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setSymbolInfo(null); setTapPoint(null); }}
+                    className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+
+                {!symbolInfo.error && (
+                  <>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {symbolInfo.category && (
+                        <span className="bg-blue-50 text-blue-700 text-xs font-semibold px-3 py-1 rounded-full">{symbolInfo.category}</span>
+                      )}
+                      {symbolInfo.connection_type && (
+                        <span className="bg-gray-100 text-gray-600 text-xs font-medium px-3 py-1 rounded-full">{symbolInfo.connection_type}</span>
+                      )}
+                      {symbolInfo.size_hint && (
+                        <span className="bg-orange-50 text-orange-600 text-xs font-medium px-3 py-1 rounded-full">{symbolInfo.size_hint}</span>
+                      )}
+                    </div>
+                    {symbolInfo.description && (
+                      <p className="text-sm text-gray-700 leading-relaxed">{symbolInfo.description}</p>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       )}
-      <div className="absolute right-3 top-4 flex flex-col gap-2">
-        {["+", "−", "↺"].map((icon) => (
-          <button
-            key={icon}
-            type="button"
-            className="w-10 h-10 bg-white rounded-xl shadow flex items-center justify-center text-gray-700 font-bold text-lg hover:bg-gray-50 transition-colors"
-          >
-            {icon}
-          </button>
-        ))}
-      </div>
-    </div>
+    </>
   );
 }
 
