@@ -1,11 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+
+interface CustomDrawing {
+  id: string;
+  title: string;
+  date: string;
+  imageUrl: string;
+}
 
 export default function WorkPage() {
   const router = useRouter();
   const [checklist, setChecklist] = useState({ item1: false, item2: false });
+  const [uploadedDrawings, setUploadedDrawings] = useState<CustomDrawing[]>([]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("custom_drawings");
+    if (saved) setUploadedDrawings(JSON.parse(saved));
+  }, []);
 
   const toggleItem = (key: keyof typeof checklist) => {
     setChecklist((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -46,33 +59,52 @@ export default function WorkPage() {
       <main className="flex-1 overflow-y-auto pb-28">
         {/* 도면 뷰어 */}
         <div className="relative bg-[#1E2A3A] w-full" style={{ height: "300px" }}>
-          {/* 도면 */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="border border-dashed border-gray-500 w-4/5 h-4/5 relative flex items-center justify-center">
-              {/* 배관 라인 SVG */}
-              <svg className="absolute inset-0 w-full h-full" viewBox="0 0 300 200" fill="none">
-                <line x1="40" y1="80" x2="160" y2="80" stroke="#9CA3AF" strokeWidth="2" />
-                <line x1="160" y1="80" x2="160" y2="40" stroke="#9CA3AF" strokeWidth="2" />
-                <rect x="150" y="32" width="20" height="16" stroke="#9CA3AF" strokeWidth="2" fill="none" />
-                <line x1="160" y1="80" x2="260" y2="80" stroke="#9CA3AF" strokeWidth="2" />
-                <line x1="220" y1="80" x2="220" y2="140" stroke="#9CA3AF" strokeWidth="2" />
-                <line x1="180" y1="140" x2="260" y2="140" stroke="#9CA3AF" strokeWidth="2" />
-              </svg>
-              {/* 탭 포인트 */}
-              <div className="relative z-10 flex flex-col items-center gap-2">
-                <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center shadow-lg">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="8" y1="6" x2="8" y2="18" />
-                    <line x1="12" y1="6" x2="12" y2="18" />
-                    <line x1="16" y1="6" x2="16" y2="18" />
-                    <line x1="5" y1="9" x2="19" y2="9" />
-                    <line x1="5" y1="15" x2="19" y2="15" />
-                  </svg>
+          {uploadedDrawings.length > 0 ? (
+            /* 업로드된 도면 이미지 표시 */
+            <>
+              <img
+                src={uploadedDrawings[0].imageUrl}
+                alt={uploadedDrawings[0].title}
+                className="absolute inset-0 w-full h-full object-contain"
+              />
+              <div className="absolute bottom-3 left-3 bg-black/50 rounded-lg px-3 py-1">
+                <span className="text-white text-xs font-semibold">{uploadedDrawings[0].title}</span>
+              </div>
+              {uploadedDrawings.length > 1 && (
+                <div className="absolute bottom-3 right-3 flex gap-1">
+                  {uploadedDrawings.slice(0, 3).map((d, i) => (
+                    <div key={d.id} className={`w-2 h-2 rounded-full ${i === 0 ? "bg-white" : "bg-white/40"}`} />
+                  ))}
                 </div>
-                <span className="bg-blue-600 text-white text-xs font-semibold px-3 py-1 rounded-full">탭해서 설명 보기</span>
+              )}
+            </>
+          ) : (
+            /* 기본 SVG 도면 */
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="border border-dashed border-gray-500 w-4/5 h-4/5 relative flex items-center justify-center">
+                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 300 200" fill="none">
+                  <line x1="40" y1="80" x2="160" y2="80" stroke="#9CA3AF" strokeWidth="2" />
+                  <line x1="160" y1="80" x2="160" y2="40" stroke="#9CA3AF" strokeWidth="2" />
+                  <rect x="150" y="32" width="20" height="16" stroke="#9CA3AF" strokeWidth="2" fill="none" />
+                  <line x1="160" y1="80" x2="260" y2="80" stroke="#9CA3AF" strokeWidth="2" />
+                  <line x1="220" y1="80" x2="220" y2="140" stroke="#9CA3AF" strokeWidth="2" />
+                  <line x1="180" y1="140" x2="260" y2="140" stroke="#9CA3AF" strokeWidth="2" />
+                </svg>
+                <div className="relative z-10 flex flex-col items-center gap-2">
+                  <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center shadow-lg">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="8" y1="6" x2="8" y2="18" />
+                      <line x1="12" y1="6" x2="12" y2="18" />
+                      <line x1="16" y1="6" x2="16" y2="18" />
+                      <line x1="5" y1="9" x2="19" y2="9" />
+                      <line x1="5" y1="15" x2="19" y2="15" />
+                    </svg>
+                  </div>
+                  <span className="bg-blue-600 text-white text-xs font-semibold px-3 py-1 rounded-full">탭해서 설명 보기</span>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* 줌 컨트롤 */}
           <div className="absolute right-3 top-4 flex flex-col gap-2">
