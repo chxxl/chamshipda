@@ -5,7 +5,20 @@ import { useRouter } from "next/navigation";
 
 type TabType = "worker" | "team";
 
-const WORKER_MESSAGES = [
+interface Message {
+  id: string;
+  name: string;
+  role: string;
+  time: string;
+  unread: boolean;
+  photoColor: string;
+  initial: string;
+  body: string;
+  linkedTask?: string;
+  hasReply: boolean;
+}
+
+const WORKER_MESSAGES: Message[] = [
   {
     id: "1",
     name: "김작업",
@@ -42,7 +55,7 @@ const WORKER_MESSAGES = [
   },
 ];
 
-const TEAM_MESSAGES = [
+const TEAM_MESSAGES: Message[] = [
   {
     id: "1",
     name: "최품질",
@@ -167,13 +180,13 @@ export default function MessageAdminPage() {
       <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white h-[64px] border-t border-gray-200 max-w-screen-sm mx-auto">
         <div className="flex w-full h-full">
           {[
-            { label: "홈", icon: "home", tab: "home" },
-            { label: "팀원", icon: "group", tab: "team" },
-            { label: "도면", icon: "description", tab: "drawings" },
-          ].map(({ label, icon, tab: t }) => (
+            { label: "홈", icon: "home", path: "/home_admin" },
+            { label: "팀원", icon: "group", path: "/home_admin" },
+            { label: "도면", icon: "description", path: "/drawing" },
+          ].map(({ label, icon, path }) => (
             <button
-              key={t}
-              onClick={() => router.push("/home_admin")}
+              key={label}
+              onClick={() => router.push(path)}
               className="flex-1 flex flex-col items-center justify-center text-[#94A3B8] transition-colors"
             >
               <span className="material-symbols-outlined text-[22px]">{icon}</span>
