@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 type AdminTab = "home" | "team" | "drawings" | "messages";
 
 export default function HomeAdminPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<AdminTab>("home");
 
   return (
@@ -191,7 +193,7 @@ export default function HomeAdminPage() {
             icon="chat_bubble"
             active={activeTab === "messages"}
             badge={3}
-            onClick={() => setActiveTab("messages")}
+            onClick={() => { setActiveTab("messages"); router.push("/message_admin"); }}
           />
         </div>
       </nav>
