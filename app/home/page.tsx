@@ -103,6 +103,7 @@ function TaskCard({ task }: { task: Task }) {
 }
 
 export default function HomePage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>("todo");
   const [tasks, setTasks] = useState<Task[]>(TASKS);
 
@@ -218,7 +219,7 @@ export default function HomePage() {
         </button>
 
         <button
-          onClick={() => setActiveTab("done")}
+          onClick={() => { setActiveTab("done"); router.push("/complete"); }}
           className="flex-1 flex flex-col items-center justify-center py-3 gap-1"
         >
           <div className={`px-5 py-2 rounded-2xl flex flex-col items-center gap-1 transition-colors ${

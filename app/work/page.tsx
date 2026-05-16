@@ -163,7 +163,10 @@ export default function WorkPage() {
           </svg>
           임시 저장
         </button>
-        <button className="flex-1 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-bold text-sm py-4 rounded-xl flex items-center justify-center gap-2 transition-colors">
+        <button
+          onClick={() => router.push("/complete")}
+          className="flex-1 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-bold text-sm py-4 rounded-xl flex items-center justify-center gap-2 transition-colors"
+        >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
             <polyline points="22 4 12 14.01 9 11.01" />
