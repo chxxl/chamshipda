@@ -75,6 +75,98 @@ export async function getDrawings(): Promise<DrawingSummary[]> {
   return data as DrawingSummary[];
 }
 
+/** 도면 이미지를 Storage 'drawings' 버킷에 업로드 후 public URL 반환 */
+export async function uploadDrawingImage(file: File): Promise<string | null> {
+  const ext = file.name.split(".").pop() ?? "bin";
+  const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+  const { error: upErr } = await supabase.storage
+    .from("drawings")
+    .upload(path, file, {
+      cacheControl: "3600",
+      upsert: false,
+    });
+  if (upErr) {
+    console.error("uploadDrawingImage error:", upErr);
+    return null;
+  }
+
+  const { data } = supabase.storage.from("drawings").getPublicUrl(path);
+  return data.publicUrl;
+}
+
+/** file_url에서 Storage 경로 추출 (삭제용) */
+function extractStoragePath(fileUrl: string): string | null {
+  const marker = "/storage/v1/object/public/drawings/";
+  const idx = fileUrl.indexOf(marker);
+  if (idx === -1) return null;
+  return fileUrl.slice(idx + marker.length);
+}
+
+export interface CreateDrawingInput {
+  code: string;
+  title: string;
+  fileUrl: string | null;
+  uploadedBy: string;
+}
+
+export async function createDrawing(input: CreateDrawingInput): Promise<DrawingSummary | null> {
+  const { data, error } = await supabase
+    .from("drawings")
+    .insert({
+      code: input.code,
+      title: input.title,
+      file_url: input.fileUrl,
+      uploaded_by: input.uploadedBy,
+    })
+    .select("id, code, title, file_url")
+    .maybeSingle();
+  if (error || !data) {
+    console.error("createDrawing error:", error);
+    return null;
+  }
+  return data as DrawingSummary;
+}
+
+export interface UpdateDrawingInput {
+  code?: string;
+  title?: string;
+  fileUrl?: string | null;
+}
+
+export async function updateDrawing(
+  id: string,
+  input: UpdateDrawingInput
+): Promise<boolean> {
+  const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (input.code !== undefined) updates.code = input.code;
+  if (input.title !== undefined) updates.title = input.title;
+  if (input.fileUrl !== undefined) updates.file_url = input.fileUrl;
+
+  const { error } = await supabase.from("drawings").update(updates).eq("id", id);
+  if (error) {
+    console.error("updateDrawing error:", error);
+    return false;
+  }
+  return true;
+}
+
+/** 도면 삭제: drawings 행 삭제 + Storage 파일 삭제 (best effort) */
+export async function deleteDrawing(id: string, fileUrl: string | null): Promise<boolean> {
+  if (fileUrl) {
+    const path = extractStoragePath(fileUrl);
+    if (path) {
+      await supabase.storage.from("drawings").remove([path]);
+    }
+  }
+  const { error } = await supabase.from("drawings").delete().eq("id", id);
+  if (error) {
+    console.error("deleteDrawing error:", error);
+    return false;
+  }
+  return true;
+}
+
 /** ID 한 건 (assign 페이지 받는사람 정보용) */
 export async function getUserById(userId: string): Promise<{
   id: string;
