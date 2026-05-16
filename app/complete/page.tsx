@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { unreadCount, INITIAL_NOTIFICATIONS } from "@/lib/notifications";
 
 type SubTab = "approved" | "reviewing";
 
@@ -19,11 +20,21 @@ export default function CompletePage() {
           </div>
           <h1 className="text-xl font-extrabold text-[#1A3BAE]">참ship다</h1>
         </div>
-        <button className="p-2">
+        <button
+          type="button"
+          onClick={() => router.push("/notifications")}
+          className="relative p-2"
+          aria-label="알림"
+        >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
             <path d="M13.73 21a2 2 0 0 1-3.46 0" />
           </svg>
+          {unreadCount(INITIAL_NOTIFICATIONS) > 0 && (
+            <span className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+              {unreadCount(INITIAL_NOTIFICATIONS)}
+            </span>
+          )}
         </button>
       </header>
 

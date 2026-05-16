@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { unreadCount, INITIAL_NOTIFICATIONS } from "@/lib/notifications";
+import { workPageHref } from "@/lib/work-tasks";
 
 type TabType = "todo" | "done" | "message";
 
@@ -73,7 +75,7 @@ function TaskCard({ task }: { task: Task }) {
 
       {/* 액션 버튼 */}
       {task.status === "rework" && (
-        <button onClick={() => router.push("/work")} className="w-full bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors">
+        <button onClick={() => router.push(workPageHref(task.id))} className="w-full bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
             <polygon points="5,3 19,12 5,21" />
           </svg>
@@ -135,14 +137,21 @@ export default function HomePage() {
             <p className="text-xs text-gray-500">{dateStr}</p>
           </div>
         </div>
-        <button className="relative p-2">
+        <button
+          type="button"
+          onClick={() => router.push("/notifications")}
+          className="relative p-2"
+          aria-label="알림"
+        >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
             <path d="M13.73 21a2 2 0 0 1-3.46 0" />
           </svg>
-          <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-            3
-          </span>
+          {unreadCount(INITIAL_NOTIFICATIONS) > 0 && (
+            <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+              {unreadCount(INITIAL_NOTIFICATIONS)}
+            </span>
+          )}
         </button>
       </header>
 
