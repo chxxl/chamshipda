@@ -236,7 +236,7 @@ export default function HomePage() {
         </button>
 
         <button
-          onClick={() => setActiveTab("message")}
+          onClick={() => { setActiveTab("message"); router.push("/message"); }}
           className="flex-1 flex flex-col items-center justify-center py-3 gap-1"
         >
           <div className={`px-5 py-2 rounded-2xl flex flex-col items-center gap-1 transition-colors ${
