@@ -3,7 +3,14 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { getWorkers, type WorkerSummary, type WorkloadLevel } from "@/lib/tasks";
+import {
+  getWorkers,
+  getActiveTasksForAssignee,
+  type WorkerSummary,
+  type WorkloadLevel,
+  type AssigneeActiveTask,
+  type TaskStatus,
+} from "@/lib/tasks";
 
 type SortType = "load" | "name";
 
@@ -20,6 +27,9 @@ export default function TeamPage() {
   const [sort, setSort] = useState<SortType>("load");
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [memberTasks, setMemberTasks] = useState<AssigneeActiveTask[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -42,6 +52,20 @@ export default function TeamPage() {
     if (sort === "load") return a.taskCount - b.taskCount;
     return a.name.localeCompare(b.name, "ko");
   });
+
+  const openMemberTasks = async (member: Member) => {
+    setSelectedMember(member);
+    setTasksLoading(true);
+    setMemberTasks([]);
+    const tasks = await getActiveTasksForAssignee(member.id);
+    setMemberTasks(tasks);
+    setTasksLoading(false);
+  };
+
+  const closeMemberTasks = () => {
+    setSelectedMember(null);
+    setMemberTasks([]);
+  };
 
   if (loading) {
     return (
@@ -107,10 +131,23 @@ export default function TeamPage() {
         {/* Member List */}
         <div className="px-4 flex flex-col gap-4">
           {sortedMembers.map((m) => (
-            <MemberCard key={m.id} member={m} />
+            <MemberCard key={m.id} member={m} onShowTasks={() => openMemberTasks(m)} />
           ))}
         </div>
       </section>
+
+      {selectedMember && (
+        <MemberTasksSheet
+          member={selectedMember}
+          tasks={memberTasks}
+          loading={tasksLoading}
+          onClose={closeMemberTasks}
+          onAssign={() => {
+            closeMemberTasks();
+            router.push(`/assign/${selectedMember.id}`);
+          }}
+        />
+      )}
 
       {/* Bottom Nav */}
       <nav className="fixed bottom-0 left-0 right-0 h-[64px] bg-white border-t border-[#E2E8F0] flex items-center px-0 z-50 max-w-screen-sm mx-auto">
@@ -125,7 +162,24 @@ export default function TeamPage() {
   );
 }
 
-function MemberCard({ member }: { member: Member }) {
+const TASK_STATUS_UI: Record<
+  TaskStatus,
+  { label: string; bg: string; text: string }
+> = {
+  waiting: { label: "대기", bg: "#F1F5F9", text: "#475569" },
+  in_progress: { label: "진행 중", bg: "#DBEAFE", text: "#1D4ED8" },
+  submitted: { label: "검토 대기", bg: "#D1FAE5", text: "#047857" },
+  rework: { label: "재작업", bg: "#FEE2E2", text: "#B91C1C" },
+  approved: { label: "완료", bg: "#DCFCE7", text: "#15803D" },
+};
+
+function MemberCard({
+  member,
+  onShowTasks,
+}: {
+  member: Member;
+  onShowTasks: () => void;
+}) {
   const router = useRouter();
   const isOverload = member.workload === "overload";
   const dotColor = WORKLOAD_COLOR[member.workload];
@@ -138,7 +192,18 @@ function MemberCard({ member }: { member: Member }) {
   const avatarText = isOverload ? "#ba1a1a" : member.isNew ? "#003d9b" : "#434654";
 
   return (
-    <article className="bg-white p-5 rounded-xl border border-[#c3c6d6] shadow-sm flex flex-col gap-4">
+    <article
+      role="button"
+      tabIndex={0}
+      onClick={onShowTasks}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onShowTasks();
+        }
+      }}
+      className="bg-white p-5 rounded-xl border border-[#c3c6d6] shadow-sm flex flex-col gap-4 cursor-pointer hover:border-[#0052cc]/40 transition-colors active:scale-[0.99]"
+    >
       <div className="flex justify-between items-start">
         <div className="flex gap-3 items-center">
           <div
@@ -171,13 +236,19 @@ function MemberCard({ member }: { member: Member }) {
         </div>
         <div className="flex gap-2">
           <button
+            type="button"
             aria-label="채팅"
+            onClick={(e) => e.stopPropagation()}
             className="w-10 h-10 flex items-center justify-center rounded-lg border border-[#c3c6d6] hover:bg-[#f0f3ff] transition-all active:scale-95"
           >
             <span className="material-symbols-outlined text-[#434654]">chat</span>
           </button>
           <button
-            onClick={() => router.push(`/assign/${member.id}`)}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              router.push(`/assign/${member.id}`);
+            }}
             className="flex items-center gap-1 px-3 h-10 rounded-lg bg-[#0052cc] text-white font-bold text-[14px] hover:opacity-90 active:scale-95 transition-all"
           >
             <span className="material-symbols-outlined text-white text-[18px]">add</span>
@@ -185,13 +256,162 @@ function MemberCard({ member }: { member: Member }) {
           </button>
         </div>
       </div>
-      <div className="flex items-center gap-2">
-        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: dotColor }} />
-        <span className="text-[14px] font-medium text-[#0E1726]">
-          진행 작업 {member.taskCount}건
+      <div className="flex items-center justify-between w-full rounded-lg border border-[#e8eeff] bg-[#f8faff] px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: dotColor }} />
+          <span className="text-[14px] font-medium text-[#0E1726]">
+            진행 작업 {member.taskCount}건
+          </span>
+        </div>
+        <span className="material-symbols-outlined text-[#0052cc] text-[20px]">
+          chevron_right
         </span>
       </div>
     </article>
+  );
+}
+
+function MemberTasksSheet({
+  member,
+  tasks,
+  loading,
+  onClose,
+  onAssign,
+}: {
+  member: Member;
+  tasks: AssigneeActiveTask[];
+  loading: boolean;
+  onClose: () => void;
+  onAssign: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-end justify-center max-w-screen-sm mx-auto">
+      <button
+        type="button"
+        className="absolute inset-0 bg-[#0E1726]/60"
+        style={{ backdropFilter: "blur(2px)" }}
+        aria-label="닫기"
+        onClick={onClose}
+      />
+      <div
+        className="relative w-full bg-white rounded-t-[20px] flex flex-col"
+        style={{
+          maxHeight: "min(720px, 85vh)",
+          boxShadow: "0 -8px 24px rgba(0,0,0,0.15)",
+        }}
+      >
+        <div className="flex justify-center pt-3 pb-2">
+          <div className="w-[40px] h-[4px] bg-[#CBD5E1] rounded-full" />
+        </div>
+
+        <header className="flex items-center justify-between px-4 pb-4 border-b border-[#E2E8F0]">
+          <div className="flex flex-col">
+            <h2 className="text-[20px] font-bold text-[#003d9b] leading-tight">
+              {member.name} · 진행 작업
+            </h2>
+            <span className="text-[13px] text-[#475569] mt-0.5">
+              {member.affiliation ?? "—"} · {member.taskCount}건
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-[#f0f3ff]"
+            aria-label="닫기"
+          >
+            <span className="material-symbols-outlined text-[#475569]">close</span>
+          </button>
+        </header>
+
+        <main
+          className="flex-1 overflow-y-auto px-4 py-4"
+          style={{ scrollbarWidth: "none", msOverflowStyle: "none" } as React.CSSProperties}
+        >
+          {loading ? (
+            <p className="text-center text-sm text-[#475569] py-10">불러오는 중...</p>
+          ) : tasks.length === 0 ? (
+            <p className="text-center text-sm text-[#475569] py-10">
+              진행 중인 작업이 없습니다.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {tasks.map((task) => {
+                const statusUi = TASK_STATUS_UI[task.status];
+                return (
+                  <li
+                    key={task.id}
+                    className="rounded-xl border border-[#c3c6d6] p-4 bg-[#fafbff]"
+                  >
+                    <MemberTaskRow task={task} statusUi={statusUi} />
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </main>
+
+        <footer className="px-4 py-4 border-t border-[#E2E8F0] flex gap-2 pb-6">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 h-11 rounded-xl border border-[#CBD5E1] text-[14px] font-semibold text-[#475569]"
+          >
+            닫기
+          </button>
+          <button
+            type="button"
+            onClick={onAssign}
+            className="flex-1 h-11 rounded-xl bg-[#0052cc] text-white text-[14px] font-bold"
+          >
+            작업 부여
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+function MemberTaskRow({
+  task,
+  statusUi,
+}: {
+  task: AssigneeActiveTask;
+  statusUi: { label: string; bg: string; text: string };
+}) {
+  return (
+    <>
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="text-[15px] font-bold text-[#131c2b] leading-snug flex-1">
+          {task.title}
+        </h3>
+        <span
+          className="text-[11px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+          style={{ backgroundColor: statusUi.bg, color: statusUi.text }}
+        >
+          {statusUi.label}
+        </span>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2 text-[12px] text-[#434654]">
+        {task.drawingCode && (
+          <span
+            className="px-2 py-0.5 rounded bg-white border border-[#e2e8f0]"
+            style={{ fontFamily: "var(--font-jetbrains), monospace" }}
+          >
+            {task.drawingCode}
+          </span>
+        )}
+        {task.zone && <span>{task.zone}</span>}
+        {task.priority === "urgent" && (
+          <span className="text-[#b91c1c] font-semibold">긴급</span>
+        )}
+      </div>
+      {task.feedback && (
+        <p className="mt-2 text-[12px] text-[#b91c1c] bg-[#fef2f2] rounded-lg px-2 py-1.5 leading-relaxed">
+          <span className="font-semibold">{task.feedback.author}:</span>{" "}
+          {task.feedback.message}
+        </p>
+      )}
+    </>
   );
 }
 
