@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { openai } from "@ai-sdk/openai";
+import { generateText } from "ai";
 
 export const runtime = "nodejs";
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,25 +16,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "이미지 URL이 필요합니다" }, { status: 400 });
     }
 
-    let imageSource: Anthropic.Base64ImageSource | Anthropic.URLImageSource;
+    const imageContent = imageUrl.startsWith("data:image/")
+      ? { type: "image" as const, image: imageUrl }
+      : { type: "image" as const, image: new URL(imageUrl) };
 
-    if (imageUrl.startsWith("data:image/")) {
-      const [header, data] = imageUrl.split(",");
-      const mediaType = (header.match(/data:(image\/[a-z]+)/)?.[1] ??
-        "image/jpeg") as Anthropic.Base64ImageSource["media_type"];
-      imageSource = { type: "base64", media_type: mediaType, data };
-    } else {
-      imageSource = { type: "url", url: imageUrl };
-    }
-
-    const message = await client.messages.create({
-      model: "claude-opus-4-7",
-      max_tokens: 1024,
+    const { text } = await generateText({
+      model: openai("gpt-4o"),
       messages: [
         {
           role: "user",
           content: [
-            { type: "image", source: imageSource },
+            imageContent,
             {
               type: "text",
               text: `당신은 P&ID(배관 계장 도면) 및 배관 아이소메트릭 도면 전문가입니다.
@@ -60,9 +51,6 @@ export async function POST(req: NextRequest) {
         },
       ],
     });
-
-    const text =
-      message.content[0].type === "text" ? message.content[0].text : "";
 
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
