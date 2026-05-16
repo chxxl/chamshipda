@@ -1,27 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
+import { getWorkers, type WorkerSummary, type WorkloadLevel } from "@/lib/tasks";
 
 type SortType = "load" | "name";
-type WorkloadLevel = "normal" | "high" | "overload";
 
-interface Member {
-  id: string;
-  name: string;
-  initial: string;
-  taskCount: number;
-  workload: WorkloadLevel;
-  isNew?: boolean;
-}
-
-const MEMBERS: Member[] = [
-  { id: "1", name: "최신입", initial: "최", taskCount: 2, workload: "normal", isNew: true },
-  { id: "2", name: "이용접", initial: "이", taskCount: 4, workload: "normal" },
-  { id: "3", name: "김작업", initial: "김", taskCount: 5, workload: "high" },
-  { id: "4", name: "정반장", initial: "정", taskCount: 7, workload: "overload" },
-  { id: "5", name: "박경호", initial: "박", taskCount: 4, workload: "normal" },
-];
+type Member = WorkerSummary;
 
 const WORKLOAD_COLOR: Record<WorkloadLevel, string> = {
   normal: "#16A34A",
@@ -32,11 +18,38 @@ const WORKLOAD_COLOR: Record<WorkloadLevel, string> = {
 export default function TeamPage() {
   const router = useRouter();
   const [sort, setSort] = useState<SortType>("load");
+  const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const sortedMembers = [...MEMBERS].sort((a, b) => {
+  useEffect(() => {
+    (async () => {
+      const u = await getCurrentUser();
+      if (!u) {
+        router.replace("/");
+        return;
+      }
+      if (u.role !== "manager") {
+        router.replace("/home");
+        return;
+      }
+      const list = await getWorkers();
+      setMembers(list);
+      setLoading(false);
+    })();
+  }, [router]);
+
+  const sortedMembers = [...members].sort((a, b) => {
     if (sort === "load") return a.taskCount - b.taskCount;
     return a.name.localeCompare(b.name, "ko");
   });
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#f9f9ff] flex items-center justify-center">
+        <p className="text-sm text-gray-500">불러오는 중...</p>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -50,7 +63,7 @@ export default function TeamPage() {
             팀원
           </h1>
           <span className="text-[12px] text-[#434654] leading-none mt-0.5">
-            배관 1팀 · {MEMBERS.length}명
+            배관 1팀 · {members.length}명
           </span>
         </div>
         <button className="relative p-2 rounded-full hover:bg-[#f0f3ff] transition-colors active:scale-95">
@@ -66,7 +79,7 @@ export default function TeamPage() {
       >
         {/* List Controls */}
         <div className="flex justify-between items-center px-4 py-4">
-          <span className="text-[14px] font-bold text-[#131c2b]">팀원 {MEMBERS.length}명</span>
+          <span className="text-[14px] font-bold text-[#131c2b]">팀원 {members.length}명</span>
           <div className="flex bg-[#e8eeff] p-1 rounded-lg">
             <button
               onClick={() => setSort("load")}
