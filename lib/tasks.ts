@@ -2,6 +2,121 @@
 
 import { supabase } from "./supabase";
 
+// ============================================================
+// 작업자 / 도면 / 작업 생성
+// ============================================================
+
+export type WorkloadLevel = "normal" | "high" | "overload";
+
+export interface WorkerSummary {
+  id: string;
+  name: string;
+  initial: string;
+  affiliation: string | null;
+  isNew: boolean;
+  taskCount: number;
+  workload: WorkloadLevel;
+}
+
+function classifyWorkload(count: number): WorkloadLevel {
+  if (count >= 7) return "overload";
+  if (count >= 4) return "high";
+  return "normal";
+}
+
+/** /team 페이지용: 작업자 목록 + 각자의 active task 수 */
+export async function getWorkers(): Promise<WorkerSummary[]> {
+  const { data, error } = await supabase
+    .from("users")
+    .select(
+      `
+        id, name, initial, affiliation, is_new,
+        tasks!tasks_assignee_id_fkey(status)
+      `
+    )
+    .eq("role", "worker")
+    .order("name");
+
+  if (error || !data) {
+    console.error("getWorkers error:", error);
+    return [];
+  }
+
+  return data.map((u): WorkerSummary => {
+    const active = (u.tasks as { status: string }[] | null ?? []).filter(
+      (t) => t.status === "waiting" || t.status === "in_progress" || t.status === "rework"
+    ).length;
+    return {
+      id: u.id,
+      name: u.name,
+      initial: u.initial,
+      affiliation: u.affiliation,
+      isNew: u.is_new,
+      taskCount: active,
+      workload: classifyWorkload(active),
+    };
+  });
+}
+
+export interface DrawingSummary {
+  id: string;
+  code: string;
+  title: string;
+  file_url: string | null;
+}
+
+/** /assign 페이지의 도면 피커용 + /drawing 목록용 */
+export async function getDrawings(): Promise<DrawingSummary[]> {
+  const { data, error } = await supabase
+    .from("drawings")
+    .select("id, code, title, file_url")
+    .order("created_at", { ascending: false });
+  if (error || !data) return [];
+  return data as DrawingSummary[];
+}
+
+/** ID 한 건 (assign 페이지 받는사람 정보용) */
+export async function getUserById(userId: string): Promise<{
+  id: string;
+  name: string;
+  initial: string;
+  affiliation: string | null;
+} | null> {
+  const { data } = await supabase
+    .from("users")
+    .select("id, name, initial, affiliation")
+    .eq("id", userId)
+    .maybeSingle();
+  return data;
+}
+
+export interface CreateTaskInput {
+  title: string;
+  assigneeId: string;
+  assignedBy: string;
+  drawingId: string | null;
+  details?: string;
+  priority?: TaskPriority;
+}
+
+/** /assign 작업 부여: tasks 테이블에 새 행 insert */
+export async function createTask(input: CreateTaskInput): Promise<boolean> {
+  const { error } = await supabase.from("tasks").insert({
+    title: input.title,
+    assignee_id: input.assigneeId,
+    assigned_by: input.assignedBy,
+    drawing_id: input.drawingId,
+    details: input.details ?? null,
+    priority: input.priority ?? "normal",
+    status: "waiting",
+  });
+  if (error) {
+    console.error("createTask error:", error);
+    return false;
+  }
+  return true;
+}
+
 export type TaskStatus =
   | "waiting"
   | "in_progress"

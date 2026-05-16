@@ -1,65 +1,121 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
+import {
+  createTask,
+  getDrawings,
+  getUserById,
+  type DrawingSummary,
+} from "@/lib/tasks";
 
-interface Member {
+interface Recipient {
   id: string;
   name: string;
   initial: string;
-  role: string;
+  affiliation: string | null;
 }
-
-const MEMBERS: Record<string, Member> = {
-  "1": { id: "1", name: "최신입", initial: "최", role: "협력업체 · 배관" },
-  "2": { id: "2", name: "이용접", initial: "이", role: "협력업체 · 용접" },
-  "3": { id: "3", name: "김작업", initial: "김", role: "협력업체 · 배관" },
-  "4": { id: "4", name: "정반장", initial: "정", role: "협력업체 · 배관" },
-  "5": { id: "5", name: "박경호", initial: "박", role: "협력업체 · 배관" },
-};
-
-interface Drawing {
-  id: string;
-  code: string;
-  name: string;
-}
-
-const DRAWINGS: Drawing[] = [
-  { id: "p101", code: "P-101 Rev.D", name: "메인 배관 설치도" },
-  { id: "p102", code: "P-102 Rev.A", name: "보조 배관 라인" },
-  { id: "m305", code: "M-305 Rev.C", name: "티 분기관 설치도" },
-  { id: "s901", code: "S-901 Rev.B", name: "도색·표면 처리 도면" },
-];
 
 export default function AssignPage() {
   const router = useRouter();
   const params = useParams<{ memberId: string }>();
-  const member = MEMBERS[params.memberId] ?? MEMBERS["3"];
+
+  const [managerId, setManagerId] = useState<string | null>(null);
+  const [member, setMember] = useState<Recipient | null>(null);
+  const [drawings, setDrawings] = useState<DrawingSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
   const [taskName, setTaskName] = useState("");
   const [drawingId, setDrawingId] = useState<string | null>(null);
   const [details, setDetails] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const u = await getCurrentUser();
+      if (!u) {
+        router.replace("/");
+        return;
+      }
+      if (u.role !== "manager") {
+        router.replace("/home");
+        return;
+      }
+      setManagerId(u.id);
+
+      const [m, ds] = await Promise.all([
+        getUserById(params.memberId),
+        getDrawings(),
+      ]);
+      if (!m) {
+        setNotFound(true);
+        setLoading(false);
+        return;
+      }
+      setMember(m);
+      setDrawings(ds);
+      setLoading(false);
+    })();
+  }, [router, params.memberId]);
 
   const selectedDrawing = useMemo(
-    () => DRAWINGS.find((d) => d.id === drawingId) ?? null,
-    [drawingId]
+    () => drawings.find((d) => d.id === drawingId) ?? null,
+    [drawings, drawingId]
   );
 
-  const isValid = taskName.trim().length > 0 && !!selectedDrawing;
+  const isValid =
+    taskName.trim().length > 0 && !!selectedDrawing && !!member && !!managerId;
 
-  const handleSubmit = () => {
-    if (!isValid) return;
-    alert(`${member.name}님에게 "${taskName}" 작업이 부여되었습니다.`);
+  const handleSubmit = async () => {
+    if (!isValid || !member || !managerId || !selectedDrawing) return;
+    setSubmitting(true);
+    const ok = await createTask({
+      title: taskName.trim(),
+      assigneeId: member.id,
+      assignedBy: managerId,
+      drawingId: selectedDrawing.id,
+      details: details.trim() || undefined,
+    });
+    setSubmitting(false);
+    if (!ok) {
+      alert("작업 부여에 실패했습니다.");
+      return;
+    }
+    alert(`${member.name}님에게 "${taskName.trim()}" 작업이 부여되었습니다.`);
     router.push("/team");
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center">
+        <p className="text-sm text-gray-500">불러오는 중...</p>
+      </div>
+    );
+  }
+
+  if (notFound || !member) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="text-sm text-gray-700">팀원을 찾을 수 없습니다.</p>
+        <button
+          type="button"
+          onClick={() => router.push("/team")}
+          className="px-5 py-2 bg-[#0052CC] text-white text-sm font-semibold rounded-lg"
+        >
+          팀원 목록으로
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div
       className="min-h-screen bg-[#F8FAFC] text-[#0E1726] flex flex-col"
       style={{ fontFamily: "var(--font-hanken), sans-serif" }}
     >
-      {/* Top Bar */}
       <header className="fixed top-0 left-0 right-0 h-[56px] bg-white border-b border-[#E2E8F0] flex items-center px-4 z-50 max-w-screen-sm mx-auto">
         <button
           onClick={() => router.back()}
@@ -74,9 +130,7 @@ export default function AssignPage() {
         <div className="w-[28px]" />
       </header>
 
-      {/* Main */}
       <main className="flex-1 pt-[56px] pb-[100px] max-w-screen-sm mx-auto w-full">
-        {/* Recipient */}
         <section className="bg-white border-b border-[#E2E8F0] p-4 flex flex-col gap-2">
           <label className="text-[13px] font-medium text-[#475569]">받는 사람</label>
           <div className="flex items-center gap-3">
@@ -85,16 +139,16 @@ export default function AssignPage() {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[16px] font-medium text-[#0E1726]">{member.name}</span>
-              <span className="inline-flex items-center px-2 py-0.5 h-[20px] text-[11px] font-medium text-[#475569] bg-[#F1F5F9] rounded-full">
-                {member.role}
-              </span>
+              {member.affiliation && (
+                <span className="inline-flex items-center px-2 py-0.5 h-[20px] text-[11px] font-medium text-[#475569] bg-[#F1F5F9] rounded-full">
+                  {member.affiliation}
+                </span>
+              )}
             </div>
           </div>
         </section>
 
-        {/* Form */}
         <div className="p-4 space-y-6">
-          {/* 작업명 */}
           <div className="flex flex-col gap-2">
             <label className="text-[14px] font-medium text-[#475569]">
               작업명 <span className="text-[#ba1a1a] font-bold">*</span>
@@ -108,7 +162,6 @@ export default function AssignPage() {
             />
           </div>
 
-          {/* 도면 */}
           <div className="flex flex-col gap-2">
             <label className="text-[14px] font-medium text-[#475569]">
               도면 <span className="text-[#ba1a1a] font-bold">*</span>
@@ -130,20 +183,19 @@ export default function AssignPage() {
                       {selectedDrawing.code}
                     </div>
                     <div className="text-[13px] text-[#475569] truncate">
-                      {selectedDrawing.name}
+                      {selectedDrawing.title}
                     </div>
                   </>
                 ) : (
-                  <div className="text-[14px] text-[#94A3B8]">도면을 선택하세요</div>
+                  <div className="text-[14px] text-[#94A3B8]">
+                    {drawings.length === 0 ? "등록된 도면이 없습니다" : "도면을 선택하세요"}
+                  </div>
                 )}
               </div>
-              <span className="material-symbols-outlined text-[18px] text-[#94A3B8]">
-                chevron_right
-              </span>
+              <span className="material-symbols-outlined text-[18px] text-[#94A3B8]">chevron_right</span>
             </button>
           </div>
 
-          {/* 작업 내용 / 주의사항 */}
           <div className="flex flex-col gap-2">
             <label className="text-[14px] font-medium text-[#475569]">
               작업 내용 / 주의사항 (선택)
@@ -161,7 +213,6 @@ export default function AssignPage() {
             </div>
           </div>
 
-          {/* Info Box */}
           <div className="flex items-start gap-2 bg-[#FEF3C7] p-3 rounded-lg border border-[#FDE68A]">
             <span
               className="material-symbols-outlined text-[20px] text-[#B45309] mt-0.5"
@@ -170,32 +221,32 @@ export default function AssignPage() {
               info
             </span>
             <p className="text-[14px] leading-tight text-[#0E1726]">
-              부여 시 {member.name}님께 즉시 알림이 발송되며, &apos;할 일&apos; 목록에
-              추가됩니다.
+              부여 시 {member.name}님의 &apos;할 일&apos; 목록에 추가됩니다.
             </p>
           </div>
         </div>
       </main>
 
-      {/* Sticky Bottom Bar */}
       <footer className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E2E8F0] p-4 flex gap-3 z-50 max-w-screen-sm mx-auto">
         <button
           onClick={() => router.back()}
-          className="w-[40%] h-[52px] bg-white border-[1.5px] border-[#CBD5E1] rounded-lg text-[#475569] font-medium active:bg-[#F1F5F9] transition-colors"
+          disabled={submitting}
+          className="w-[40%] h-[52px] bg-white border-[1.5px] border-[#CBD5E1] rounded-lg text-[#475569] font-medium active:bg-[#F1F5F9] transition-colors disabled:opacity-50"
         >
           취소
         </button>
         <button
           onClick={handleSubmit}
-          disabled={!isValid}
+          disabled={!isValid || submitting}
           className="w-[60%] h-[52px] bg-[#0052CC] rounded-lg text-white font-bold active:opacity-90 transition-opacity disabled:bg-[#94A3B8] disabled:cursor-not-allowed"
         >
-          부여하기
+          {submitting ? "부여 중..." : "부여하기"}
         </button>
       </footer>
 
       {pickerOpen && (
         <DrawingPicker
+          drawings={drawings}
           selectedId={drawingId}
           onPick={(id) => {
             setDrawingId(id);
@@ -209,10 +260,12 @@ export default function AssignPage() {
 }
 
 function DrawingPicker({
+  drawings,
   selectedId,
   onPick,
   onClose,
 }: {
+  drawings: DrawingSummary[];
   selectedId: string | null;
   onPick: (id: string) => void;
   onClose: () => void;
@@ -242,40 +295,46 @@ function DrawingPicker({
           </button>
         </header>
         <ul className="overflow-y-auto p-2">
-          {DRAWINGS.map((d) => {
-            const selected = d.id === selectedId;
-            return (
-              <li key={d.id}>
-                <button
-                  onClick={() => onPick(d.id)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors ${
-                    selected ? "bg-[#E6EFFF]" : "hover:bg-[#F8FAFC]"
-                  }`}
-                >
-                  <div className="w-[48px] h-[48px] rounded bg-[#1E293B] flex-shrink-0 flex items-center justify-center text-white">
-                    <span className="material-symbols-outlined text-[24px]">architecture</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div
-                      className="text-[15px] font-semibold text-[#0E1726] truncate"
-                      style={{ fontFamily: "var(--font-jetbrains), monospace" }}
-                    >
-                      {d.code}
+          {drawings.length === 0 ? (
+            <li className="p-6 text-center text-[#94A3B8] text-[14px]">
+              등록된 도면이 없습니다
+            </li>
+          ) : (
+            drawings.map((d) => {
+              const selected = d.id === selectedId;
+              return (
+                <li key={d.id}>
+                  <button
+                    onClick={() => onPick(d.id)}
+                    className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors ${
+                      selected ? "bg-[#E6EFFF]" : "hover:bg-[#F8FAFC]"
+                    }`}
+                  >
+                    <div className="w-[48px] h-[48px] rounded bg-[#1E293B] flex-shrink-0 flex items-center justify-center text-white">
+                      <span className="material-symbols-outlined text-[24px]">architecture</span>
                     </div>
-                    <div className="text-[13px] text-[#475569] truncate">{d.name}</div>
-                  </div>
-                  {selected && (
-                    <span
-                      className="material-symbols-outlined text-[24px] text-[#0052cc]"
-                      style={{ fontVariationSettings: "'FILL' 1" }}
-                    >
-                      check_circle
-                    </span>
-                  )}
-                </button>
-              </li>
-            );
-          })}
+                    <div className="flex-1 min-w-0">
+                      <div
+                        className="text-[15px] font-semibold text-[#0E1726] truncate"
+                        style={{ fontFamily: "var(--font-jetbrains), monospace" }}
+                      >
+                        {d.code}
+                      </div>
+                      <div className="text-[13px] text-[#475569] truncate">{d.title}</div>
+                    </div>
+                    {selected && (
+                      <span
+                        className="material-symbols-outlined text-[24px] text-[#0052cc]"
+                        style={{ fontVariationSettings: "'FILL' 1" }}
+                      >
+                        check_circle
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })
+          )}
         </ul>
       </div>
     </div>
