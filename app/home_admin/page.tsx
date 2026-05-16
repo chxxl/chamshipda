@@ -186,7 +186,7 @@ export default function HomeAdminPage() {
             label="도면"
             icon="description"
             active={activeTab === "drawings"}
-            onClick={() => setActiveTab("drawings")}
+            onClick={() => { setActiveTab("drawings"); router.push("/drawing"); }}
           />
           <NavTab
             label="메시지"
