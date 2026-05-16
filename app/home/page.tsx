@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 type TabType = "todo" | "done" | "message";
@@ -11,7 +11,6 @@ interface Task {
   title: string;
   feedback?: string;
   feedbackAuthor?: string;
-  progress?: number;
 }
 
 const TASKS: Task[] = [
@@ -26,7 +25,6 @@ const TASKS: Task[] = [
     id: "2",
     status: "inprogress",
     title: "DN50 배관 라인 연결",
-    progress: 60,
   },
   {
     id: "3",
@@ -72,21 +70,6 @@ function TaskCard({ task }: { task: Task }) {
         </div>
       )}
 
-      {/* 진행률 (진행 중) */}
-      {task.progress !== undefined && (
-        <div className="flex flex-col gap-1.5">
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-500">작업 공정률</span>
-            <span className="font-semibold text-blue-600">{task.progress}%</span>
-          </div>
-          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-blue-600 rounded-full transition-all"
-              style={{ width: `${task.progress}%` }}
-            />
-          </div>
-        </div>
-      )}
 
       {/* 액션 버튼 */}
       {task.status === "rework" && (
@@ -98,7 +81,7 @@ function TaskCard({ task }: { task: Task }) {
         </button>
       )}
       {task.status === "inprogress" && (
-        <button className="w-full border-2 border-blue-600 text-blue-600 font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-50 transition-colors">
+        <button onClick={() => router.push("/work2")} className="w-full border-2 border-blue-600 text-blue-600 font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-50 transition-colors">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
             <rect x="3" y="3" width="4" height="18" rx="1" />
             <polygon points="11,3 24,12 11,21" />
@@ -107,7 +90,7 @@ function TaskCard({ task }: { task: Task }) {
         </button>
       )}
       {task.status === "waiting" && (
-        <button className="w-full border border-gray-300 text-gray-700 font-semibold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors">
+        <button onClick={() => router.push("/wait")} className="w-full border border-gray-300 text-gray-700 font-semibold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
             <polyline points="14 2 14 8 20 8" />
@@ -121,6 +104,17 @@ function TaskCard({ task }: { task: Task }) {
 
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState<TabType>("todo");
+  const [tasks, setTasks] = useState<Task[]>(TASKS);
+
+  useEffect(() => {
+    if (localStorage.getItem("task_1_status") === "inprogress") {
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === "1" ? { id: t.id, status: "inprogress" as const, title: t.title } : t
+        )
+      );
+    }
+  }, []);
 
   const today = new Date();
   const dateStr = `${today.getMonth() + 1}월 ${today.getDate()}일 ${["일", "월", "화", "수", "목", "금", "토"][today.getDay()]}요일`;
@@ -193,7 +187,7 @@ export default function HomePage() {
             <span className="text-xs text-gray-400">최근 업데이트: 08:42</span>
           </div>
           <div className="flex flex-col gap-3">
-            {TASKS.map((task) => (
+            {tasks.map((task) => (
               <TaskCard key={task.id} task={task} />
             ))}
           </div>

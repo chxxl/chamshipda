@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function WorkPage() {
+export default function Work2Page() {
   const router = useRouter();
-  const [checklist, setChecklist] = useState({ item1: false, item2: false });
+  const [checklist, setChecklist] = useState({ item1: false, item2: false, item3: false });
 
   const toggleItem = (key: keyof typeof checklist) => {
     setChecklist((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -46,10 +46,8 @@ export default function WorkPage() {
       <main className="flex-1 overflow-y-auto pb-28">
         {/* 도면 뷰어 */}
         <div className="relative bg-[#1E2A3A] w-full" style={{ height: "300px" }}>
-          {/* 도면 */}
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="border border-dashed border-gray-500 w-4/5 h-4/5 relative flex items-center justify-center">
-              {/* 배관 라인 SVG */}
               <svg className="absolute inset-0 w-full h-full" viewBox="0 0 300 200" fill="none">
                 <line x1="40" y1="80" x2="160" y2="80" stroke="#9CA3AF" strokeWidth="2" />
                 <line x1="160" y1="80" x2="160" y2="40" stroke="#9CA3AF" strokeWidth="2" />
@@ -58,7 +56,6 @@ export default function WorkPage() {
                 <line x1="220" y1="80" x2="220" y2="140" stroke="#9CA3AF" strokeWidth="2" />
                 <line x1="180" y1="140" x2="260" y2="140" stroke="#9CA3AF" strokeWidth="2" />
               </svg>
-              {/* 탭 포인트 */}
               <div className="relative z-10 flex flex-col items-center gap-2">
                 <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center shadow-lg">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -83,7 +80,6 @@ export default function WorkPage() {
             ))}
           </div>
 
-          {/* ISO VIEW 라벨 */}
           <div className="absolute bottom-3 left-3">
             <span className="text-gray-400 text-xs">ISO VIEW - SHIP_B_004</span>
           </div>
@@ -102,6 +98,7 @@ export default function WorkPage() {
               {[
                 { key: "item1" as const, label: "DN50 SCH40 강관 6m × 2" },
                 { key: "item2" as const, label: "플랜지 및 볼트 세트 (12개입)" },
+                { key: "item3" as const, label: "토크 렌치 (80 N·m)" },
               ].map(({ key, label }) => (
                 <button
                   key={key}
@@ -152,10 +149,7 @@ export default function WorkPage() {
 
       {/* 하단 버튼 */}
       <div className="fixed bottom-0 left-0 right-0 max-w-sm mx-auto w-full bg-[#EEF2FF] px-4 py-4 flex gap-3">
-        <button
-          onClick={() => { localStorage.setItem("task_1_status", "inprogress"); router.push("/home"); }}
-          className="flex-none border border-gray-300 bg-white text-gray-700 font-semibold text-sm px-5 py-4 rounded-xl flex items-center gap-2 hover:bg-gray-50 transition-colors"
-        >
+        <button className="flex-none border border-gray-300 bg-white text-gray-700 font-semibold text-sm px-5 py-4 rounded-xl flex items-center gap-2 hover:bg-gray-50 transition-colors">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
             <polyline points="17 21 17 13 7 13 7 21" />
