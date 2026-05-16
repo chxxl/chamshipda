@@ -2,20 +2,123 @@
 
 import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getWorkTask } from "@/lib/work-tasks";
+import { getCurrentUser } from "@/lib/auth";
+import {
+  getTaskById,
+  markInProgress,
+  submitTask,
+  type WorkTaskDetail,
+} from "@/lib/tasks";
+
+const STATUS_LABEL: Record<WorkTaskDetail["status"], { label: string; bg: string }> = {
+  waiting: { label: "대기", bg: "bg-gray-500" },
+  in_progress: { label: "진행 중", bg: "bg-blue-600" },
+  submitted: { label: "검토 대기 중", bg: "bg-emerald-600" },
+  rework: { label: "재작업 필요", bg: "bg-red-500" },
+  approved: { label: "완료", bg: "bg-green-600" },
+};
+
+function formatDeadline(deadline: string | null): string | null {
+  if (!deadline) return null;
+  const remainingMs = new Date(deadline).getTime() - Date.now();
+  if (remainingMs <= 0) return "마감 지남";
+  const mins = Math.floor(remainingMs / 60000);
+  if (mins < 60) return `${mins}분 남음`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}시간 남음`;
+  return `${Math.floor(hours / 24)}일 남음`;
+}
 
 function WorkPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const task = getWorkTask(searchParams.get("taskId"));
+  const taskId = searchParams.get("taskId");
 
-  const [checklist, setChecklist] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(task.materials.map((m) => [m.key, false]))
-  );
+  const [task, setTask] = useState<WorkTaskDetail | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [checklist, setChecklist] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    (async () => {
+      const u = await getCurrentUser();
+      if (!u) {
+        router.replace("/");
+        return;
+      }
+      setUserId(u.id);
+
+      if (!taskId) {
+        setNotFound(true);
+        setLoading(false);
+        return;
+      }
+
+      const t = await getTaskById(taskId);
+      if (!t) {
+        setNotFound(true);
+        setLoading(false);
+        return;
+      }
+      setTask(t);
+      setChecklist(Object.fromEntries(t.materials.map((m) => [m.key, false])));
+      setLoading(false);
+    })();
+  }, [router, taskId]);
 
   const toggleItem = (key: string) => {
     setChecklist((prev) => ({ ...prev, [key]: !prev[key] }));
   };
+
+  const handleSave = async () => {
+    if (!task) return;
+    if (task.status === "waiting") {
+      await markInProgress(task.id);
+    }
+    router.push("/home");
+  };
+
+  const handleComplete = async () => {
+    if (!task || !userId) return;
+    setSubmitting(true);
+    const ok = await submitTask(task.id, userId);
+    setSubmitting(false);
+    if (!ok) {
+      alert("완료 신청에 실패했습니다. 다시 시도해주세요.");
+      return;
+    }
+    router.push("/home");
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#EEF2FF] flex items-center justify-center">
+        <p className="text-sm text-gray-500">작업 화면 불러오는 중…</p>
+      </div>
+    );
+  }
+
+  if (notFound || !task) {
+    return (
+      <div className="min-h-screen bg-[#EEF2FF] flex flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="text-sm text-gray-700">작업을 찾을 수 없습니다.</p>
+        <button
+          type="button"
+          onClick={() => router.push("/home")}
+          className="px-5 py-2 bg-[#1A3BAE] text-white text-sm font-semibold rounded-lg"
+        >
+          홈으로
+        </button>
+      </div>
+    );
+  }
+
+  const statusConfig = STATUS_LABEL[task.status];
+  const drawingLabel = task.drawing?.code ?? "도면 미지정";
+  const timeRemaining = formatDeadline(task.deadline);
+  const isRework = task.status === "rework";
 
   return (
     <div className="min-h-screen bg-[#EEF2FF] flex flex-col">
@@ -35,123 +138,109 @@ function WorkPageContent() {
         </h1>
       </header>
 
-      <StatusBar task={task} />
+      <div className="bg-[#EEF2FF] px-4 pb-3 flex items-center gap-2 overflow-x-auto">
+        <span className={`${statusConfig.bg} text-white text-xs font-bold px-3 py-1.5 rounded-full flex-shrink-0`}>
+          {statusConfig.label}
+        </span>
+        <span className="border border-gray-300 text-gray-700 text-xs font-medium px-3 py-1.5 rounded-lg flex-shrink-0 bg-white">
+          {drawingLabel}
+        </span>
+        {task.zone && (
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
+            <span className="text-xs text-gray-600">{task.zone}</span>
+          </div>
+        )}
+        {timeRemaining && (
+          <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+            <span className="text-xs font-bold text-red-500">{timeRemaining}</span>
+          </div>
+        )}
+      </div>
 
       {task.feedback && (
-        <FeedbackBanner feedback={task.feedback} />
+        <div className="mx-4 mb-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-gray-700 leading-relaxed">
+          <p className="text-xs font-bold text-red-600 mb-1">반려 사유</p>
+          <span className="font-semibold text-gray-900">{task.feedback.author}:</span>{" "}
+          {task.feedback.message}
+        </div>
       )}
 
       <main className="flex-1 overflow-y-auto pb-28">
-        <DrawingViewer task={task} />
+        <DrawingViewer task={task} isRework={isRework} />
 
         <div className="px-4 pt-4 flex flex-col gap-3">
-          <MaterialsCard
-            materials={task.materials}
-            checklist={checklist}
-            onToggle={toggleItem}
-          />
+          {task.materials.length > 0 && (
+            <MaterialsCard
+              materials={task.materials}
+              checklist={checklist}
+              onToggle={toggleItem}
+            />
+          )}
 
-          <CautionCard task={task} />
+          {task.caution_title && (
+            <CautionCard
+              title={task.caution_title}
+              subtitle={task.caution_subtitle ?? "주의사항"}
+              isRework={isRework}
+            />
+          )}
 
-          <div className="bg-white rounded-2xl px-4 py-4 shadow-sm border border-gray-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" />
-              </svg>
-              <span className="text-sm text-gray-600">예상 작업 시간</span>
+          {task.details && (
+            <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+              <p className="text-xs font-bold text-gray-500 mb-2">작업 내용 / 주의사항</p>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{task.details}</p>
             </div>
-            <span className="text-base font-extrabold text-blue-600">
-              {task.estimatedMinutes} min
-            </span>
-          </div>
+          )}
+
+          {task.estimated_minutes && (
+            <div className="bg-white rounded-2xl px-4 py-4 shadow-sm border border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <span className="text-sm text-gray-600">예상 작업 시간</span>
+              </div>
+              <span className="text-base font-extrabold text-blue-600">
+                {task.estimated_minutes} min
+              </span>
+            </div>
+          )}
         </div>
       </main>
 
       <BottomActions
-        onSave={() => {
-          localStorage.setItem(`task_${task.id}_status`, "inprogress");
-          router.push("/home");
-        }}
-        onComplete={() => router.push("/complete")}
+        onSave={handleSave}
+        onComplete={handleComplete}
+        disabled={submitting}
       />
     </div>
   );
 }
 
-function StatusBar({ task }: { task: ReturnType<typeof getWorkTask> }) {
-  return (
-    <div className="bg-[#EEF2FF] px-4 pb-3 flex items-center gap-2 overflow-x-auto">
-      <span className={`${task.statusBadgeClass} text-white text-xs font-bold px-3 py-1.5 rounded-full flex-shrink-0`}>
-        {task.statusLabel}
-      </span>
-      <span className="border border-gray-300 text-gray-700 text-xs font-medium px-3 py-1.5 rounded-lg flex-shrink-0 bg-white">
-        {task.drawingRev}
-      </span>
-      <div className="flex items-center gap-1 flex-shrink-0">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-          <circle cx="12" cy="10" r="3" />
-        </svg>
-        <span className="text-xs text-gray-600">{task.zone}</span>
-      </div>
-      {task.timeRemaining && (
-        <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="12 6 12 12 16 14" />
-          </svg>
-          <span className={`text-xs font-bold ${task.isRework ? "text-red-500" : "text-red-500"}`}>
-            {task.timeRemaining}
-          </span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function FeedbackBanner({
-  feedback,
-}: {
-  feedback: NonNullable<ReturnType<typeof getWorkTask>["feedback"]>;
-}) {
-  return (
-    <div className="mx-4 mb-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-gray-700 leading-relaxed">
-      <p className="text-xs font-bold text-red-600 mb-1">반려 사유</p>
-      <span className="font-semibold text-gray-900">{feedback.author}:</span>{" "}
-      {feedback.message}
-    </div>
-  );
-}
-
-function DrawingViewer({ task }: { task: ReturnType<typeof getWorkTask> }) {
-  const tapColor = task.isRework ? "bg-red-500" : "bg-blue-600";
-  const [uploadedDrawings, setUploadedDrawings] = useState<{ id: string; title: string; imageUrl: string }[]>([]);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("custom_drawings");
-    if (saved) setUploadedDrawings(JSON.parse(saved));
-  }, []);
+function DrawingViewer({ task, isRework }: { task: WorkTaskDetail; isRework: boolean }) {
+  const tapColor = isRework ? "bg-red-500" : "bg-blue-600";
 
   return (
     <div className="relative bg-[#1E2A3A] w-full" style={{ height: "300px" }}>
-      {uploadedDrawings.length > 0 ? (
+      {task.drawing?.file_url ? (
         <>
           <img
-            src={uploadedDrawings[0].imageUrl}
-            alt={uploadedDrawings[0].title}
+            src={task.drawing.file_url}
+            alt={task.drawing.title}
             className="absolute inset-0 w-full h-full object-contain"
           />
           <div className="absolute bottom-3 left-3 bg-black/50 rounded-lg px-3 py-1">
-            <span className="text-white text-xs font-semibold">{uploadedDrawings[0].title}</span>
+            <span className="text-white text-xs font-semibold">{task.drawing.title}</span>
           </div>
-          {uploadedDrawings.length > 1 && (
-            <div className="absolute bottom-3 right-3 flex gap-1">
-              {uploadedDrawings.slice(0, 3).map((d, i) => (
-                <div key={d.id} className={`w-2 h-2 rounded-full ${i === 0 ? "bg-white" : "bg-white/40"}`} />
-              ))}
-            </div>
-          )}
         </>
       ) : (
         <>
@@ -160,7 +249,7 @@ function DrawingViewer({ task }: { task: ReturnType<typeof getWorkTask> }) {
               <svg className="absolute inset-0 w-full h-full" viewBox="0 0 300 200" fill="none">
                 <line x1="40" y1="80" x2="160" y2="80" stroke="#9CA3AF" strokeWidth="2" />
                 <line x1="160" y1="80" x2="160" y2="40" stroke="#9CA3AF" strokeWidth="2" />
-                <rect x="150" y="32" width="20" height="16" stroke={task.isRework ? "#EF4444" : "#9CA3AF"} strokeWidth="2" fill="none" />
+                <rect x="150" y="32" width="20" height="16" stroke={isRework ? "#EF4444" : "#9CA3AF"} strokeWidth="2" fill="none" />
                 <line x1="160" y1="80" x2="260" y2="80" stroke="#9CA3AF" strokeWidth="2" />
                 <line x1="220" y1="80" x2="220" y2="140" stroke="#9CA3AF" strokeWidth="2" />
                 <line x1="180" y1="140" x2="260" y2="140" stroke="#9CA3AF" strokeWidth="2" />
@@ -169,7 +258,7 @@ function DrawingViewer({ task }: { task: ReturnType<typeof getWorkTask> }) {
             </div>
           </div>
           <div className="absolute bottom-3 left-3">
-            <span className="text-gray-400 text-xs">{task.isoLabel}</span>
+            <span className="text-gray-400 text-xs">{task.drawing?.title ?? "도면 없음"}</span>
           </div>
         </>
       )}
@@ -212,7 +301,7 @@ function MaterialsCard({
   checklist,
   onToggle,
 }: {
-  materials: ReturnType<typeof getWorkTask>["materials"];
+  materials: { key: string; label: string }[];
   checklist: Record<string, boolean>;
   onToggle: (key: string) => void;
 }) {
@@ -253,12 +342,20 @@ function ChecklistBox({ checked }: { checked: boolean }) {
   );
 }
 
-function CautionCard({ task }: { task: ReturnType<typeof getWorkTask> }) {
-  const boxClass = task.isRework
+function CautionCard({
+  title,
+  subtitle,
+  isRework,
+}: {
+  title: string;
+  subtitle: string;
+  isRework: boolean;
+}) {
+  const boxClass = isRework
     ? "bg-red-50 border-red-200"
     : "bg-orange-50 border-orange-200";
-  const iconClass = task.isRework ? "bg-red-500" : "bg-orange-500";
-  const labelClass = task.isRework ? "text-red-500" : "text-orange-500";
+  const iconClass = isRework ? "bg-red-500" : "bg-orange-500";
+  const labelClass = isRework ? "text-red-500" : "text-orange-500";
 
   return (
     <div className={`${boxClass} border rounded-2xl p-4 flex items-center gap-4`}>
@@ -270,8 +367,8 @@ function CautionCard({ task }: { task: ReturnType<typeof getWorkTask> }) {
         </svg>
       </div>
       <div>
-        <p className={`text-xs font-medium ${labelClass} mb-0.5`}>{task.cautionSubtitle}</p>
-        <p className="text-base font-extrabold text-gray-900">{task.cautionTitle}</p>
+        <p className={`text-xs font-medium ${labelClass} mb-0.5`}>{subtitle}</p>
+        <p className="text-base font-extrabold text-gray-900">{title}</p>
       </div>
     </div>
   );
@@ -280,16 +377,19 @@ function CautionCard({ task }: { task: ReturnType<typeof getWorkTask> }) {
 function BottomActions({
   onSave,
   onComplete,
+  disabled,
 }: {
   onSave: () => void;
   onComplete: () => void;
+  disabled: boolean;
 }) {
   return (
     <div className="fixed bottom-0 left-0 right-0 max-w-sm mx-auto w-full bg-[#EEF2FF] px-4 py-4 flex gap-3">
       <button
         type="button"
         onClick={onSave}
-        className="flex-none border border-gray-300 bg-white text-gray-700 font-semibold text-sm px-5 py-4 rounded-xl flex items-center gap-2 hover:bg-gray-50 transition-colors"
+        disabled={disabled}
+        className="flex-none border border-gray-300 bg-white text-gray-700 font-semibold text-sm px-5 py-4 rounded-xl flex items-center gap-2 hover:bg-gray-50 transition-colors disabled:opacity-50"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
@@ -301,13 +401,14 @@ function BottomActions({
       <button
         type="button"
         onClick={onComplete}
-        className="flex-1 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-bold text-sm py-4 rounded-xl flex items-center justify-center gap-2 transition-colors"
+        disabled={disabled}
+        className="flex-1 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-bold text-sm py-4 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:bg-gray-400"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
           <polyline points="22 4 12 14.01 9 11.01" />
         </svg>
-        작업 완료 신청
+        {disabled ? "신청 중..." : "작업 완료 신청"}
       </button>
     </div>
   );
