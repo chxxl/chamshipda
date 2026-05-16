@@ -1,0 +1,28 @@
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
+@import url('https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;700&display=swap');
+
+/* Liberation Serif fallback - using Libre Franklin as a similar alternative */
+@font-face {
+  font-family: 'Liberation_Serif';
+  src: local('Times New Roman'), local('Times'), local('serif');
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: 'Liberation_Serif:Bold';
+  src: local('Times New Roman Bold'), local('Times Bold'), local('serif');
+  font-weight: 700;
+}
+
+/* WenQuanYi Zen Hei fallback - using system fonts */
+@font-face {
+  font-family: 'WenQuanYi_Zen_Hei';
+  src: local('Microsoft YaHei'), local('微软雅黑'), local('SimHei'), local('黑体'), local('sans-serif');
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: 'WenQuanYi_Zen_Hei:Medium';
+  src: local('Microsoft YaHei'), local('微软雅黑'), local('SimHei'), local('黑体'), local('sans-serif');
+  font-weight: 500;
+}
