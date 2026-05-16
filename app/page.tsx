@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { signIn } from "@/lib/auth";
 
 type UserRole = "worker" | "manager";
 
@@ -12,20 +13,37 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({ userId: "", password: "" });
+  const [loginError, setLoginError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (role === "worker") {
-      const newErrors = {
-        userId: !userId.trim() ? "아이디를 입력해주세요." : "",
-        password: !password.trim() ? "비밀번호를 입력해주세요." : "",
-      };
-      setErrors(newErrors);
-      if (newErrors.userId || newErrors.password) return;
-      router.push("/home");
-    } else if (role === "manager") {
-      router.push("/home_admin");
+    setLoginError("");
+
+    const newErrors = {
+      userId: !userId.trim() ? "아이디를 입력해주세요." : "",
+      password: !password.trim() ? "비밀번호를 입력해주세요." : "",
+    };
+    setErrors(newErrors);
+    if (newErrors.userId || newErrors.password) return;
+
+    setLoading(true);
+    const user = await signIn(userId.trim(), password);
+    setLoading(false);
+
+    if (!user) {
+      setLoginError("아이디 또는 비밀번호가 일치하지 않습니다.");
+      return;
     }
+    if (user.role !== role) {
+      setLoginError(
+        role === "worker"
+          ? "관리자 계정입니다. 관리자 탭에서 로그인해주세요."
+          : "작업자 계정입니다. 작업자 탭에서 로그인해주세요."
+      );
+      return;
+    }
+    router.push(user.role === "manager" ? "/home_admin" : "/home");
   };
 
   return (
@@ -123,12 +141,19 @@ export default function LoginPage() {
           {errors.password && <p className="text-xs text-red-500 pl-1">{errors.password}</p>}
           </div>
 
+          {loginError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              <p className="text-sm text-red-600">{loginError}</p>
+            </div>
+          )}
+
           {/* 로그인 버튼 */}
           <button
             type="submit"
-            className="mt-2 w-full bg-[#1A3BAE] text-white font-bold text-base py-4 rounded-xl shadow-lg hover:bg-[#1530A0] active:bg-[#122890] transition-colors"
+            disabled={loading}
+            className="mt-2 w-full bg-[#1A3BAE] text-white font-bold text-base py-4 rounded-xl shadow-lg hover:bg-[#1530A0] active:bg-[#122890] transition-colors disabled:bg-[#94A3B8] disabled:cursor-not-allowed"
           >
-            로그인
+            {loading ? "로그인 중..." : "로그인"}
           </button>
         </form>
 
